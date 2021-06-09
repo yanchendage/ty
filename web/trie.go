@@ -1,4 +1,4 @@
-package ty
+package web
 
 import (
 	"strings"

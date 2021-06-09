@@ -1,4 +1,4 @@
-package ty
+package web
 
 import (
 	"net/http"
@@ -26,8 +26,8 @@ type Mind struct {
 
 //constructor of ty
 func New() *Mind {
-	mind := &Mind{router:newRouter()}//new mind
-	mind.RouterGroup = &RouterGroup{mind:mind}//new root routerGroup
+	mind := &Mind{router: newRouter()}      //new mind
+	mind.RouterGroup = &RouterGroup{mind:mind} //new root routerGroup
 	mind.groups = []*RouterGroup{mind.RouterGroup}
 
 	return mind
@@ -40,7 +40,6 @@ func (group *RouterGroup) Group(prefix string) * RouterGroup{
 
 	newGroup := &RouterGroup{
 		prefix:      group.prefix + prefix,
-		parent:      group,
 		mind:        mind,
 	}
 
