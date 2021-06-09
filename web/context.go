@@ -17,7 +17,10 @@ type Context struct {
 	Method 		string
 	Params 		map[string]string
 	//res
-	statusCode 	int
+	StatusCode 	int
+	//middleware
+	handlers []HandlerFunc
+	handlerIndex int
 }
 
 func newContext(w http.ResponseWriter, r *http.Request) *Context {
@@ -27,6 +30,20 @@ func newContext(w http.ResponseWriter, r *http.Request) *Context {
 		Path:     r.URL.Path,
 		Method:   r.Method,
 		Params:	  make(map[string]string),
+		handlerIndex: 	  -1,
+	}
+}
+
+//execution transfer to next middleware
+func (c *Context) Next()  {
+	//statr from index 0
+	c.handlerIndex++
+	//middleware count
+	hc := len(c.handlers)
+
+	for ; c.handlerIndex < hc ; c.handlerIndex++ {
+		//exec handler
+		c.handlers[c.handlerIndex](c)
 	}
 }
 
@@ -44,8 +61,8 @@ func (c *Context) Param(key string) string{
 }
 
 func (c *Context) SetStatusCode(statusCode int) {
-	c.statusCode = statusCode
-	c.Writer.WriteHeader(c.statusCode)
+	c.StatusCode = statusCode
+	c.Writer.WriteHeader(c.StatusCode)
 }
 
 func (c *Context) SetHeader(key string, value string) {
@@ -73,6 +90,10 @@ func (c *Context) Data(statusCode int, data []byte) {
 	c.Writer.Write(data)
 }
 
+func (c *Context) Fail(code int, err string) {
+
+	c.Json(code, J{"message": err})
+}
 
 
 
