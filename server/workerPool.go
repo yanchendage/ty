@@ -1,0 +1,50 @@
+package server
+
+import (
+	"log"
+	"sync"
+)
+
+type WorkerPool struct {
+
+	work chan IWorker
+	wg sync.WaitGroup
+}
+
+func NewWorkerPool(poolSize int) *WorkerPool{
+
+	wp := WorkerPool{
+		work: make(chan IWorker),
+	}
+
+	wp.wg.Add(poolSize)
+	for i := 0; i <poolSize; i++ {
+		go func() {
+			for w := range wp.work{
+
+				log.Println("【work pool】 get one work")
+				w.task()
+			}
+
+			//select {
+			//case w := <- wp.work:
+			//	log.Println("【workerPool】get work")
+			//	w.task()
+			//}
+			wp.wg.Done()
+		}()
+	}
+
+	return  &wp
+}
+
+func (wp *WorkerPool) AddWork(work IWorker)  {
+	wp.work <- work
+}
+
+func (wp *WorkerPool) Close()  {
+	close(wp.work)
+	//wait all goroutine
+	wp.wg.Wait()
+}
+
