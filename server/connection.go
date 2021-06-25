@@ -1,41 +1,41 @@
 package server
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
 	"log"
 	"net"
+	"sync"
 )
 
 type Connection struct {
+	Server IServer
 	ConnectionManager IConnectionManager
-
 	Conn *net.TCPConn
-
 	ID uint32
-
 	Closed bool
-
-	Exit chan bool
-
 	MessageManager IMessageManager
-
 	Msg chan []byte
-
 	BuffMsg chan []byte
+	ctx  context.Context
+	cancel context.CancelFunc
+	property map[string]interface{}
+	propertyLock sync.RWMutex
 }
 
-func NewConnection(conn *net.TCPConn, id uint32, messageManager IMessageManager, connectionManager IConnectionManager) *Connection {
+func NewConnection(server IServer, conn *net.TCPConn, id uint32, messageManager IMessageManager, connectionManager IConnectionManager) *Connection {
 	connection := &Connection{
+		Server: server,
 		ConnectionManager:connectionManager,
 		Conn:   conn,
 		ID:     id,
 		Closed: false,
 		MessageManager : messageManager,
-		Exit:   make(chan bool, 1),
 		Msg: make(chan []byte),
 		BuffMsg : make(chan []byte, Conf["buffMessageQueueSize"].(int)),
+		property:     make(map[string]interface{}), 
 	}
 
 	//add connection to connection manager
@@ -52,36 +52,46 @@ func (c *Connection) read() {
 	coder := NewCoder()
 
 	for {
-		headData := make([]byte, coder.GetHeadLen())
-		if _, err := io.ReadFull(c.Conn, headData); err != nil {
-			fmt.Println("read msg head error ", err)
+		select {
+		case <-c.ctx.Done():
 			return
-		}
+		default:
 
-		msg, err := coder.Decode(headData)
-		if err != nil {
-			log.Println("【Connection】coder decode err ", err)
-			c.Exit <- true
-			return
-		}
+			headData := make([]byte, coder.GetHeadLen())
+			if _, err := io.ReadFull(c.Conn, headData); err != nil {
+				//if err != io.EOF && err != io.ErrUnexpectedEOF {
+				//	fmt.Println("【Connection】read msg head error ", err)
+				//	return
+				//}
 
-		var body []byte
-		if msg.GetDataLen() > 0 {
-			body = make([]byte, msg.GetDataLen())
-			if _, err := io.ReadFull(c.GetTCPConn(),body); err != nil{
-				log.Println("【Connection】read msg body err ", err)
-				c.Exit <- true
+				fmt.Println("【Connection】read msg head error ", err)
 				return
 			}
 
-			msg.SetData(body)
+			msg, err := coder.Decode(headData)
+			if err != nil {
+				log.Println("【Connection】coder decode err ", err)
+				return
+			}
+
+			var body []byte
+			if msg.GetDataLen() > 0 {
+				body = make([]byte, msg.GetDataLen())
+				if _, err := io.ReadFull(c.GetTCPConn(),body); err != nil{
+					log.Println("【Connection】read msg body err ", err)
+					return
+				}
+
+				msg.SetData(body)
+			}
+
+			req := NewRequest(c, msg, c.MessageManager)
+
+			var _ IRequest = (*Request)(nil)
+
+			c.MessageManager.AddWorkerToWorkQueue(req)
+
 		}
-
-		req := NewRequest(c, msg, c.MessageManager)
-
-		var _ IRequest = (*Request)(nil)
-
-		c.MessageManager.AddWorkerToWorkQueue(req)
 	}
 }
 
@@ -109,8 +119,7 @@ func (c *Connection) write()  {
 			}else {
 				log.Println("【Connection】send buff msg success")
 			}
-			
-		case <- c.Exit:
+		case <-c.ctx.Done():
 			return
 		}
 	}
@@ -154,16 +163,13 @@ func (c *Connection) SendBuffMsg(msgID uint32, data []byte) error{
 
 
 func (c *Connection) Start()  {
+
+	c.ctx, c.cancel = context.WithCancel(context.Background())
+
 	go c.read()
 	go c.write()
 
-	for {
-		select {
-		case <- c.Exit:
-			return
-		}
-	}
-
+	c.Server.CallOnConnStartCallback(c)
 }
 
 func (c *Connection) Stop() {
@@ -171,16 +177,16 @@ func (c *Connection) Stop() {
 	if c.Closed == true {
 		return
 	}
+	c.Server.CallOnConnStopCallback(c)
 
 	c.Closed = true
 
 	c.Conn.Close()
 
-	c.Exit <- true
+	c.cancel()
 
 	c.ConnectionManager.Remove(c.ID)
 
-	close(c.Exit)
 	close(c.BuffMsg)
 }
 
@@ -194,6 +200,36 @@ func (c *Connection) GetConnID() uint32 {
 
 func (c *Connection) GetRemoteAddr() net.Addr {
 	return c.Conn.RemoteAddr()
+}
+
+func (c * Connection) SetProperty(key string, value interface{})  {
+	c.propertyLock.Lock()
+	defer  c.propertyLock.Unlock()
+
+	c.property[key] = value
+}
+
+func (c * Connection) GetProperty(key string) (interface{} , error) {
+	c.propertyLock.RLock()
+
+	defer  c.propertyLock.RUnlock()
+
+	if value, ok := c.property[key]; ok {
+		return value, nil
+	}else {
+		return nil, errors.New("【Connection】property not found")
+	}
+}
+
+func (c * Connection) RemoveProperty(key string) {
+	c.propertyLock.Lock()
+	defer c.propertyLock.Unlock()
+
+	delete(c.property, key)
+}
+
+func (c *Connection) GetServer() IServer {
+	return c.Server
 }
 
 

@@ -15,9 +15,9 @@ func TestClient(t *testing.T)  {
 		log.Println("【Client】start err", err)
 		return
 	}
+	coder := NewCoder()
 
 	for {
-		coder := NewCoder()
 
 		writeMsg, err := coder.Encode(NewMessage(0, []byte("fuck you ")))
 		if err != nil {

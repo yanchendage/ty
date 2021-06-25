@@ -37,7 +37,7 @@ func (this *HelloZinxRouter) Handle(request IRequest) {
 }
 
 func TestNewServer(t *testing.T) {
-	s := NewServer()
+	s := NewDefaultServer()
 	//配置路由
 	s.AddRouter(0, &PongRouter{})
 	s.AddRouter(1, &HelloZinxRouter{})

@@ -1,7 +1,7 @@
 package server
 
 type ICoder interface {
-	GetHeadLen()
-	Encode()
-	Decode()
+	GetHeadLen() uint32
+	Encode(IMessage)([]byte, error)
+	Decode(bin []byte) (IMessage, error)
 }
