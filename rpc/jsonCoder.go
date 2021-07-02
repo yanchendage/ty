@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"reflect"
 )
 
 type JsonCoder struct {
@@ -15,7 +14,7 @@ type JsonCoder struct {
 	decoder *json.Decoder
 }
 
-func (j *JsonCoder) Encode(msg Msg, register reflect.Type) ([]byte, error){
+func (j *JsonCoder) Encode(msg Msg) ([]byte, error){
 	return nil, nil
 }
 
@@ -44,15 +43,16 @@ func (j *JsonCoder) Close() error {
 
 func NewJsonCoder(conn io.Closer) ICoder{
 
-	var buf bytes.Buffer
+	//var buf bytes.Buffer
+	//
+	//return &JsonCoder{
+	//	//conn:    conn,
+	//	////buf:     buf,
+	//	//encoder: json.NewEncoder(&buf), // encode conn
+	//	//decoder: json.NewDecoder(&buf), // decode conn
+	//}
 
-	return &JsonCoder{
-		conn:    conn,
-		//buf:     buf,
-		encoder: json.NewEncoder(&buf), // encode conn
-		decoder: json.NewDecoder(&buf), // decode conn
-	}
-
+	return nil
 }
 
 

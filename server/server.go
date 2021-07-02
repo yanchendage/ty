@@ -88,6 +88,13 @@ func (s *Server) Run()  {
 	select {}
 }
 
+func (s *Server) RunAndRegister()  {
+	s.Start()
+
+	select {}
+}
+
+
 func (s *Server) AddRouter(msgID uint32, router IRouter)  {
 
 	s.MessageManager.AddRouter(msgID, router)

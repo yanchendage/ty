@@ -10,11 +10,11 @@ import (
 type Msg struct {
 	H Header
 
-	//Args reflect.Value
-	//Reply reflect.Value
+	Args reflect.Value
+	Reply reflect.Value
 
-	Args interface{}
-	Reply interface{}
+	//Args interface{}
+	//Reply interface{}
 
 	//B Body
 

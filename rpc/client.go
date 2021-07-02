@@ -1,7 +1,7 @@
 package rpc
 
 import (
-	"encoding/gob"
+	"context"
 	"errors"
 	"fmt"
 	"github.com/yanchendage/ty/server"
@@ -51,29 +51,28 @@ func (client *Client) Close() error  {
 }
 
 func (client *Client) AddCaller(caller *Caller) (uint64, error) {
-
 	client.mu.Lock()
 	defer  client.mu.Unlock()
 
 	if client.closed {
 		return 0, errors.New("【RPC client】 client is closed")
 	}
+	caller.Seq = client.seq
 	client.pending[caller.Seq] = caller
-	caller.Seq ++ ;
+	client.seq ++ ;
 
 	return  caller.Seq, nil
 }
 
-func (client *Client) RemoveCaller(seq uint64) error {
+
+func (client *Client) RemoveCaller(seq uint64) *Caller {
 	client.mu.Lock()
 	defer client.mu.Unlock()
 
-	if client.closed {
-		return errors.New("【RPC client】 client is closed")
-	}
-
+	caller := client.pending[seq]
 	delete(client.pending, seq)
-	return nil
+
+	return caller
 }
 
 func (client *Client) CleanCaller(err error) {
@@ -91,7 +90,6 @@ func (client *Client) CleanCaller(err error) {
 func (client *Client) receive()  {
 
 	for {
-
 		head := make([]byte, client.ServerCoder.GetHeadLen())
 		_, err := io.ReadFull(client.conn, head)
 
@@ -105,7 +103,6 @@ func (client *Client) receive()  {
 			log.Println("【RPC Client】head decode err", err)
 			return
 		}
-
 		if readMsgHead.GetDataLen() > 0 {
 			readMsg := readMsgHead.(*server.Message)
 
@@ -117,12 +114,47 @@ func (client *Client) receive()  {
 				return
 			}
 
-			fmt.Println("【RPC Client】 Recv Msg: ID=", readMsg.ID, ", len=", readMsg.DataLen, ", data=", string(readMsg.Data))
+			header, err := client.Coder.DecodeHeader(readMsg.Data)
+			if err != nil {
+				log.Println("【RPC Client】data decode header err", err)
+				return
+			}
+
+			caller := client.RemoveCaller(header.Seq)
+			switch {
+			case caller == nil:
+				err = errors.New("【RPC Client】caller was already removed")
+			case header.Err != "":
+				caller.Error = fmt.Errorf(header.Err)
+				caller.done()
+			default:
+				var argv reflect.Value
+				argType := reflect.TypeOf(caller.Reply)
+				if argType.Kind() == reflect.Ptr {
+					argv = reflect.New(argType.Elem())
+				} else {
+					argv = reflect.New(argType).Elem()
+				}
+
+				argvi := argv.Interface()
+
+				if argv.Type().Kind() != reflect.Ptr {
+					argvi = argv.Addr().Interface()
+				}
+
+				reply,err := client.Coder.DecodeReply(readMsg.GetData(),argvi)
+				if err != nil{
+					log.Println("【RPC Client】data decode body err", err)
+					return
+				}
+
+				reflect.ValueOf(caller.Reply).Elem().Set(reply)
+
+				caller.done()
+			}
+			//fmt.Println("【RPC Client】 Recv Msg: ID=", readMsg.ID, ", len=", readMsg.DataLen, ", data=", string(readMsg.Data))
 		}
-
-
 	}
-
 }
 
 func Dial(address string, serializationProtocol SerializationProtocol) (*Client, error) {
@@ -133,8 +165,6 @@ func Dial(address string, serializationProtocol SerializationProtocol) (*Client,
 		log.Println("【RPC Client】net Dial err", err)
 		return nil, err
 	}
-
-	//defer conn.Close()
 
 	f := NewCoderFuncMap[serializationProtocol]
 
@@ -163,6 +193,7 @@ func Dial(address string, serializationProtocol SerializationProtocol) (*Client,
 }
 
 func (client *Client) Send(caller *Caller) {
+
 	client.sending.Lock()
 	defer client.sending.Unlock()
 
@@ -180,32 +211,12 @@ func (client *Client) Send(caller *Caller) {
 		Seq:          seq,
 	}
 
-	kind := reflect.TypeOf(caller.Args).Kind()
-
-	log.Println(kind)
-
-
-	if kind == reflect.Struct {
-		log.Println(reflect.TypeOf(caller.Args))
-		gob.Register(reflect.TypeOf(caller.Args))
-	}
-	//
-	//b := Body{
-	//	Args:   reflect.ValueOf(caller.Args),
-	//}
-
 	msg := Msg{
 		H: h,
-		//B: b,
-		Args:reflect.ValueOf(caller.Args).Interface(),
-		//Args: reflect.ValueOf(caller.Args),
+		Args:reflect.ValueOf(caller.Args),
 	}
 
-
-	log.Println(msg)
-	gob.Register(fuck{})
-
-	buf , err := client.Coder.Encode(msg,reflect.TypeOf(caller.Args).Name())
+	buf , err := client.Coder.Encode(msg)
 
 	if err !=nil {
 		log.Println("【RPC】encode err ", err)
@@ -223,12 +234,11 @@ func (client *Client) Send(caller *Caller) {
 			return
 		}
 
-
-	log.Println("【RPC Client】send msg", buf)
 	if err != nil {
-		log.Println("【RPC Client】send msg", err)
+		log.Println("【RPC Client】send msg err", err)
 		return
 	}
+	log.Println("【RPC Client】send msg success", buf)
 }
 
 func (client *Client) AsyncCall(serviceMethod string, args interface{}, reply interface{}, done chan *Caller) *Caller{
@@ -241,7 +251,7 @@ func (client *Client) AsyncCall(serviceMethod string, args interface{}, reply in
 	caller := &Caller{
 		ServiceMethod: serviceMethod,
 		Args:          args,
-		Reply:         args,
+		Reply:         reply,
 		Done:          done,
 	}
 
@@ -249,11 +259,27 @@ func (client *Client) AsyncCall(serviceMethod string, args interface{}, reply in
 	return caller
 }
 
-func (client *Client) SyncCall(serviceMethod string, args interface{}, reply interface{}) error{
+func (client *Client)Available() bool  {
+	client.mu.Lock()
+	defer client.mu.Unlock()
 
-	call := <-client.AsyncCall(serviceMethod, args, reply, make(chan *Caller, 1)).Done
-
-	return call.Error
+	return !client.closed
 }
+
+func (client *Client) SyncCall(ctx context.Context, serviceMethod string, args interface{}, reply interface{}) error{
+
+	call := client.AsyncCall(serviceMethod, args, reply, make(chan *Caller, 1))
+
+	for  {
+		select {
+		case <-ctx.Done():
+			client.RemoveCaller(call.Seq)
+			return errors.New("rpc client: call failed: " + ctx.Err().Error())
+		case call := <-call.Done:
+			return call.Error
+		}
+	}
+}
+
 
 

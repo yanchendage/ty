@@ -2,8 +2,10 @@ package rpc
 
 import (
 	"errors"
+	"fmt"
 	"github.com/yanchendage/ty/server"
 	"log"
+	"reflect"
 	"strings"
 	"sync"
 )
@@ -16,7 +18,7 @@ func (gc *GobCoderRouter) Handle(request server.IRequest) {
 
 	log.Println("【RPC Server】 request msgId=", request.GetMsgID(), ", data=", string(request.GetMsgData()))
 
-	//coder
+	//new coder
 	f := NewCoderFuncMap[GobProtocol]
 	if f == nil {
 		log.Println("【RPC Server】invalid coder type ", request.GetMsgID())
@@ -25,56 +27,63 @@ func (gc *GobCoderRouter) Handle(request server.IRequest) {
 
 	coder := f(request.GetConnection().GetTCPConn())
 
-	//read msg data
-	msg, err := coder.Decode(request.GetMsgData())
+	header, err := coder.DecodeHeader(request.GetMsgData())
+
 	if err !=nil {
-		log.Println("【RPC Server】coder decode err ", err)
+		log.Println("【RPC Server】coder decode header err ", err)
 		return
 	}
 
 	serviceManager,_ := request.GetConnection().GetServer().GetProperty("ServiceManager")
 	sm := serviceManager.(*ServiceManager)
 
-	svc , mt, err := sm.findService(msg.H.ServiceMethod)
+	svc, mt, err := sm.findService(header.ServiceMethod)
+
 	if err != nil {
 		log.Println("【RPC Server】find service method err ", err)
 		return
 	}
 
-	//msg.methodType = mt
-	//msg.svc = svc
-
-	//arg := msg.methodType.newArgv()
-	//reply := msg.methodType.newReplyv()
-
-	log.Println(svc,mt)
-
-	//arg.Set(msg.B.Args)
+	arg := mt.newArgv()
+	reply := mt.newReplyv()
 	//
-	//svc.call(mt,arg,reply)
-	//
-	//log.Println(*reply.Interface().(*int))
+	argvi := arg.Interface()
+	if arg.Type().Kind() != reflect.Ptr {
+		argvi = arg.Addr().Interface()
+	}
 
-	//msg.B.Arg = reflect.New(reflect.TypeOf(""))
-	//
-	//if err := coder.ReadBody(req.body.Arg); err != nil{
-	//	log.Println("rpc server: read body error:", err)
-	//}
-	//
-	//log.Println(req)
-	//log.Println(req.body.Arg.Elem())
+	arg, err = coder.DecodeArgs(request.GetMsgData(),argvi)
+	if err != nil {
+		log.Println("【RPC Server】Decode Args err ", err)
+		header.Err = "Decode Args err"
+		return
+	}
 
-	//req.replyv = reflect.ValueOf(fmt.Sprintf("geerpc resp %d", req.h.Seq))
-	//
-	//
-	//request.GetConnection().SendMsg(0, []byte("pong"))
+	err = svc.call(mt, arg, reply)
+	if err != nil {
+		log.Println("【RPC Server】service call err ", err)
+		header.Err = "service call err"
+		return
+	}
 
-	//handleRequest
+	msg := Msg{
+		H: header,
+		Reply:reply,
+	}
 
+	respBuf, err := coder.Encode(msg)
 
-	//sendResponse
+	if err != nil {
+		log.Println("【RPC Server】response coder encode err ", err)
+		return
+	}
 
-	//err := request.GetConnection().SendMsg(0, []byte("pong"))
+	err = request.GetConnection().SendMsg(0,respBuf)
+
+	if err != nil {
+		log.Println("【RPC Server】response send msg err ", err)
+		return
+	}
 }
 
 type ServiceManager struct {
@@ -113,10 +122,61 @@ func (sm *ServiceManager) findService(serviceMethod string) (svc *service, metho
 	return
 }
 
-
-
 func NewServiceManager() *ServiceManager {
 	return &ServiceManager{}
+}
+
+
+type ServerManager struct {
+	serviceManager *ServiceManager
+	Server server.IServer
+	RegistryAddr string
+}
+
+func (serverManager *ServerManager) AddProperty(key string, value interface{})  {
+	serverManager.Server.SetProperty(key, value)
+}
+
+func (serverManager *ServerManager) RegisterService(service interface{}) error {
+	s := newService(service)
+	if _ , loaded := serverManager.serviceManager.ServiceMap.LoadOrStore(s.name, s); loaded {
+		return errors.New("rpc: service already defined: " + s.name)
+	}
+	log.Println("【RPC Server】register service ")
+	return  nil
+}
+
+func (serverManager *ServerManager) Run() {
+
+	//service register
+	//if serverManager.RegistryAddr != "" {
+	//	http.
+	//}
+
+	serverManager.Server.SetProperty("ServiceManager", serverManager.serviceManager)
+
+	serverManager.Server.AddRouter(0,&GobCoderRouter{})
+
+	serverManager.Server.Run()
+}
+
+
+func InitServerManagerAndRegister(serverName string, host string, port int, registryAddr string) *ServerManager{
+	r := server.NewServer(serverName, host, port)
+	return &ServerManager{
+		serviceManager: NewServiceManager(),
+		Server:         r,
+		RegistryAddr: registryAddr,
+	}
+}
+
+
+func InitServerManager(serverName string, host string, port int) *ServerManager{
+	r := server.NewServer(serverName, host, port)
+	return &ServerManager{
+		serviceManager: NewServiceManager(),
+		Server:         r,
+	}
 }
 
 func NewServerManager(serverName string, host string, port int,properties map[string]interface{}){
@@ -129,7 +189,12 @@ func NewServerManager(serverName string, host string, port int,properties map[st
 
 	r.AddRouter(0,&GobCoderRouter{})
 
+
 	r.Run()
+
+	//service register
+	fmt.Println("todo service register")
+
 }
 
 func NewServer(serverName string, host string, port int)  {

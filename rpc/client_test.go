@@ -1,9 +1,12 @@
 package rpc
 
 import (
+	"context"
+	"fmt"
 	"log"
 	"sync"
 	"testing"
+	"time"
 )
 
 func TestClient(t *testing.T) {
@@ -20,81 +23,77 @@ func TestClient(t *testing.T) {
 	var wg sync.WaitGroup
 
 	for i:=0; i<5 ;i++ {
-
-		log.Println("【RPC Client】id",i)
-
 		wg.Add(1)
 
 		go func(i int) {
 			defer  wg.Done()
-			args := Fuck{1,2}
-			var reply string
+			//args := &Param{1,2}
+			arg2 := []string{"fuck","you"}
+			//var reply int
+			var reply2 string
 
-			err := client.SyncCall("Foo.Sum", args, &reply)
+			err := client.SyncCall(context.Background(), "Foo.Echo", arg2, &reply2)
 
 			if err !=nil {
 				log.Println("【Client】SyncCall err", err)
 				return
 			}
 
-			log.Println("【Client】reply",reply)
+			log.Println("arg",arg2,"reply",reply2)
+
+			//log.Printf("%d + %d = %d", args.Num1, args.Num2, reply)
+		}(i)
+	}
+
+	wg.Wait()
+}
+
+func TestClientManager(t *testing.T)  {
+	discovery := NewLocalDiscovery([]string{"127.0.0.1:7729"})
+	cm := NewClientManager(discovery, Random)
+	defer cm.Close()
+
+	var wg sync.WaitGroup
+
+	arg2 := []string{"fuck","you"}
+	//var reply int
+	var reply2 string
+
+	for i :=1 ; i<5; i++{
+		wg.Add(1)
+		go func(i int) {
+			defer  wg.Done()
+			cm.Call(context.Background(),"Foo.Echo", arg2, &reply2 )
+
+			fmt.Println(reply2)
 		}(i)
 	}
 
 	wg.Wait()
 
-	//conn,err := net.Dial("tcp", "127.0.0.1:7727")
-	//if err != nil {
-	//	log.Println("【Client】start err", err)
-	//	return
-	//}
-	//
-	//for i := 0; i < 5; i++{
-	//	coder := server.NewCoder()
-	//
-	//	gobCoder := NewGobCoder(conn)
-	//
-	//	h := Header{
-	//		ServiceMethod: "Fuck.You",
-	//		Seq:          uint64(i),
-	//	}
-	//
-	//	b := Body{
-	//		Args:   []int{1,2,3},
-	//	}
-	//	msg := Msg{
-	//		H: h,
-	//		B: b,
-	//	}
-	//
-	//	buf , err := gobCoder.Encode(msg)
-	//
-	//	if err !=nil {
-	//		log.Println("【RPC】encode err ", err)
-	//	}
-	//
-	//	//log.Println("【RPC】msg encode", buf)
-	//	//
-	//	//m, _ := gobCoder.Decode(buf)
-	//
-	//	//
-	//	//log.Println("【RPC】msg decode", m)
-	//
-	//
-	//
-	//	writeMsg, err := coder.Encode(server.NewMessage(0, buf))
-	//	if err != nil {
-	//		log.Println("【Client】encode msg err", err)
-	//		return
-	//	}
-	//
-	//	_, err = conn.Write(writeMsg)
-	//	if err != nil {
-	//		log.Println("【Client】write msg err", err)
-	//		return
-	//	}
-	//
-	//	log.Println("【Client】write msg success")
-	//}
+}
+
+func TestClientManagerRegistry(t *testing.T)  {
+	discovery := NewRegistryDiscovery("http://127.0.0.1:8888", 10 * time.Second)
+	cm := NewClientManager(discovery, Random)
+	defer cm.Close()
+
+	var wg sync.WaitGroup
+
+	arg2 := []string{"fuck","you"}
+	//var reply int
+	var reply2 string
+
+	for i :=1 ; i<5; i++{
+		wg.Add(1)
+		go func(i int) {
+			defer  wg.Done()
+			cm.Call(context.Background(),"Foo.Echo", arg2, &reply2 )
+
+			fmt.Println(reply2)
+		}(i)
+	}
+
+	wg.Wait()
 
 }

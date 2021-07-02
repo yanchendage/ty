@@ -15,41 +15,77 @@ type GobCoder struct {
 	decoder *gob.Decoder
 }
 
-func (c *GobCoder) Decode(buf []byte) (*Msg, error){
-	var msg Msg
+func (c *GobCoder) DecodeHeader(buf []byte) (Header, error){
+	//var msg Msg
+	var header Header
 	dec := gob.NewDecoder(bytes.NewBuffer(buf))
-
-	err := dec.Decode(&msg)
+	err := dec.Decode(&header)
 
 	if err != nil {
-		return nil, err
+		return Header{}, err
 	}
 
-	return &msg ,err
+	return header ,err
 }
 
-func (c *GobCoder) Encode(msg Msg, register reflect.Type) ([]byte, error) {
+func (c *GobCoder) DecodeBody(buf []byte, interfaces ...interface{}) ([]reflect.Value, error) {
+
+	var reflectValueSlice []reflect.Value
+
+	dec := gob.NewDecoder(bytes.NewBuffer(buf))
+	err := dec.Decode(&Header{})
+
+	for _, i := range interfaces {
+		err = dec.DecodeValue(reflect.ValueOf(i))
+		if err!=nil {
+			return reflectValueSlice, err
+		}
+		reflectValueSlice = append(reflectValueSlice, reflect.ValueOf(i).Elem())
+	}
+
+	return reflectValueSlice, nil
+}
+
+func (c *GobCoder) DecodeArgs(buf []byte, argsInterface interface{}) (reflect.Value, error) {
+
+	dec := gob.NewDecoder(bytes.NewBuffer(buf))
+	err := dec.Decode(&Header{})
+	err = dec.DecodeValue(reflect.ValueOf(argsInterface))
+	if err!=nil {
+		return reflect.ValueOf(argsInterface), err
+	}
+	return reflect.ValueOf(argsInterface).Elem(), nil
+}
+
+func (c *GobCoder) DecodeReply(buf []byte, replyInterface interface{}) (reflect.Value, error) {
+
+	dec := gob.NewDecoder(bytes.NewBuffer(buf))
+	err := dec.Decode(&Header{})
+	err = dec.DecodeValue(reflect.ValueOf(replyInterface))
+	if err!=nil {
+		return reflect.ValueOf(replyInterface), err
+	}
+	return reflect.ValueOf(replyInterface).Elem(), nil
+}
+
+func (c *GobCoder) Encode(msg Msg) ([]byte, error) {
 
 	buf := new(bytes.Buffer)
 
 	enc := gob.NewEncoder(buf)
 
-	log.Println(register)
+	err := enc.Encode(msg.H)
 
-	gob.Register(reflect.New(register))
-
-	err := enc.EncodeValue(msg.Args)
-	//
-	//if err == nil {
-	//	fmt.Println(123)
-	//}
-
-
-	err := enc.Encode(&msg)
-
+	if msg.Args.IsValid() {
+		err = enc.EncodeValue(msg.Args)
+	}
+	if msg.Reply.IsValid() {
+		err = enc.EncodeValue(msg.Reply)
+	}
 	if err != nil {
 		return  nil, err
 	}
+
 	return buf.Bytes(), nil
 }
 
@@ -89,8 +125,6 @@ func (c *GobCoder) Write(header *Header, body *Body) error {
 		return err
 	}
 
-
-
 	return nil
 }
 
@@ -111,7 +145,6 @@ func NewGobCoder(conn io.Closer) ICoder{
 		encoder: gob.NewEncoder(&buf), // encode conn
 		decoder: gob.NewDecoder(&buf), // decode conn
 	}
-
 }
 
 
