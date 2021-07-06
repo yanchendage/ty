@@ -32,7 +32,7 @@ func TestClient(t *testing.T) {
 			//var reply int
 			var reply2 string
 
-			err := client.SyncCall(context.Background(), "Foo.Echo", arg2, &reply2)
+			err := client.SyncCall(context.Background(), "Foo.Sum", arg2, &reply2)
 
 			if err !=nil {
 				log.Println("【Client】SyncCall err", err)

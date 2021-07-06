@@ -16,15 +16,27 @@ type Server struct {
 	MessageManager IMessageManager
 	ConnectionManager IConnectionManager
 
+	OnServerStart func() error
+	OnServerStop func() error
+
 	OnConnStart	func(conn IConnection)
 	OnConnStop func(conn IConnection)
 
 	property map[string]interface{}
 	propertyLock sync.RWMutex
+
+	stop chan bool
 }
 
 func (s * Server) Start() {
 	log.Printf("【Server】 listenner at IP: %s, Port %d, is starting\n", s.IP, s.Port)
+
+	err := s.CallOnServerStartCallback()
+	if err !=nil {
+		log.Println("【Server】CallOnServerStartCallback err",err)
+		s.stop<-true
+		return
+	}
 
 	go func() {
 		// start work pool
@@ -76,34 +88,59 @@ func (s * Server) Start() {
 }
 
 func (s *Server) Stop() {
-
-	log.Println("【Server】stop")
+	s.MessageManager.StopWorkerPool()
 	s.ConnectionManager.Clean()
+	s.CallOnServerStopCallback()
+	s.stop <- true
+
+	log.Println("【Server】has stopped")
 }
 
 
 func (s *Server) Run()  {
+
 	s.Start()
 
-	select {}
+	if <-s.stop {
+		log.Println("【Server】has stopped")
+		return
+	}
+
 }
-
-func (s *Server) RunAndRegister()  {
-	s.Start()
-
-	select {}
-}
-
 
 func (s *Server) AddRouter(msgID uint32, router IRouter)  {
 
 	s.MessageManager.AddRouter(msgID, router)
 }
 
+func (s *Server) SetOnServerStartCallback(callback func () error){
+	s.OnServerStart = callback
+}
+
+func (s *Server) SetOnServerStopCallback(callback func () error){
+	s.OnServerStop = callback
+}
+
+func (s *Server) CallOnServerStartCallback() error{
+	if s.OnServerStart != nil {
+		err := s.OnServerStart()
+		return err
+	}
+	return nil
+}
+
+func (s *Server) CallOnServerStopCallback() error {
+	if s.OnServerStop != nil {
+		s.OnServerStop()
+	}
+	return nil
+}
+
 
 func (s *Server) SetOnConnStartCallback(callback func (IConnection)){
 	s.OnConnStart = callback
 }
+
 func (s *Server) SetOnConnStopCallback(callback func (IConnection)){
 	s.OnConnStop = callback
 }
@@ -113,6 +150,7 @@ func (s *Server) CallOnConnStartCallback(conn IConnection){
 		s.OnConnStart(conn)
 	}
 }
+
 func (s *Server) CallOnConnStopCallback(conn IConnection){
 	if s.OnConnStop != nil {
 		s.OnConnStop(conn)
@@ -155,6 +193,7 @@ func NewDefaultServer() *Server {
 		MessageManager: NewMessageManager(),
 		ConnectionManager:NewConnectionManager(),
 		property:     make(map[string]interface{}),
+		stop: make(chan bool,1),
 	}
 }
 
@@ -167,5 +206,6 @@ func NewServer(name string, host string, port int) *Server {
 		MessageManager: NewMessageManager(),
 		ConnectionManager:NewConnectionManager(),
 		property:     make(map[string]interface{}),
+		stop: make(chan bool,1),
 	}
 }

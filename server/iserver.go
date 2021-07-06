@@ -6,6 +6,11 @@ type IServer interface {
 	Run()
 	AddRouter(msgID uint32, router IRouter)
 
+	SetOnServerStartCallback(func() error)
+	SetOnServerStopCallback(func() error)
+	CallOnServerStartCallback() error
+	CallOnServerStopCallback() error
+
 	SetOnConnStartCallback(func (IConnection))
 	SetOnConnStopCallback(func (IConnection))
 	CallOnConnStartCallback(conn IConnection)

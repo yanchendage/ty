@@ -30,7 +30,7 @@ func TestNewServerManager(t *testing.T) {
 func TestInitServerManager(t *testing.T) {
 	var foo Foo
 
-	serverManager := InitServerManager("RPC", "127.0.0.1", 7729,"http://127.0.0.1:8888")
+	serverManager := InitServerManager("RPC", "127.0.0.1", 7729)
 	serverManager.RegisterService(&foo)
 
 	serverManager.Run()

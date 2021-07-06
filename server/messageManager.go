@@ -11,6 +11,8 @@ type MessageManager struct {
 	WorkerPoolNumber uint32
 
 	WorkQueue []chan IWorker
+
+
 }
 
 
@@ -39,25 +41,47 @@ func  (mm *MessageManager) GetRouter(msgID uint32) IRouter{
 	return handler
 }
 
+func (mm *MessageManager) StopWorkerPool()  {
+	for _, queue  := range mm.WorkQueue {
+		close(queue)
+	}
+}
+
 func (mm *MessageManager) StartWorkerPool() {
+	//var wg sync.WaitGroup
+
+	//Set parameters to increase concurrency
 	for i := 0; i< int(Conf["workerPoolNumber"].(uint32)); i++ {
+		//wg.Add(1)
+		//cache queue
 		mm.WorkQueue[i] = make(chan IWorker, Conf["maxTaskQueueLen"].(int))
 
 		go mm.startOneWorkerPool(i, mm.WorkQueue[i])
-
-		log.Println("【Message Manager】work pool id", i, "starting")
+		//log.Println("【Message Manager】work pool id", i, "starting")
 	}
+	//wg.Wait()
+
+	log.Println("【Message Manager】work pool starting")
 }
 
 func (mm *MessageManager) startOneWorkerPool(workerPoolID int, taskQueue chan IWorker)  {
 	wp := NewWorkerPool(1)
 
 	for {
-		select {
-		case w := <-taskQueue :
-			wp.AddWork(w)
+		//select {
+		//case w := <-taskQueue :
+		//	wp.AddWork(w)
+		//}
+		w, ok := <-taskQueue
+		if !ok {
+			wp.Close()
+			log.Println("WorkerPool id", workerPoolID," stop")
+			return
 		}
+
+		wp.AddWork(w)
 	}
+
 }
 
 func (mm *MessageManager) AddWorkerToWorkQueue(request IRequest){

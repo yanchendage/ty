@@ -64,7 +64,11 @@ func (c *Connection) read() {
 				//	return
 				//}
 
-				fmt.Println("【Connection】read msg head error ", err)
+				if err != io.EOF {
+					fmt.Println("【Connection】read msg head error ", err)
+					return
+				}
+
 				return
 			}
 

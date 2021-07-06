@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/yanchendage/ty/server"
 	"log"
+	"net/http"
 	"reflect"
 	"strings"
 	"sync"
@@ -148,11 +149,6 @@ func (serverManager *ServerManager) RegisterService(service interface{}) error {
 
 func (serverManager *ServerManager) Run() {
 
-	//service register
-	//if serverManager.RegistryAddr != "" {
-	//	http.
-	//}
-
 	serverManager.Server.SetProperty("ServiceManager", serverManager.serviceManager)
 
 	serverManager.Server.AddRouter(0,&GobCoderRouter{})
@@ -163,6 +159,26 @@ func (serverManager *ServerManager) Run() {
 
 func InitServerManagerAndRegister(serverName string, host string, port int, registryAddr string) *ServerManager{
 	r := server.NewServer(serverName, host, port)
+	r.SetProperty("registryAddr",registryAddr)
+
+	r.SetOnServerStartCallback(func() error {
+		registryAddr,err := r.GetProperty("registryAddr")
+		addr := fmt.Sprintf("%s?addr=%s:%d",registryAddr.(string), r.IP, r.Port)
+
+		if err !=nil {
+			return err
+		}
+
+		_, err = http.Post(addr,
+			"application/x-www-form-urlencoded", nil)
+		if err != nil {
+			log.Println("【server】 register to rpc registry err",err)
+			return err
+		}
+
+		return err
+	})
+
 	return &ServerManager{
 		serviceManager: NewServiceManager(),
 		Server:         r,

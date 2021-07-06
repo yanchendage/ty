@@ -1,7 +1,6 @@
 package server
 
 import (
-	"log"
 	"sync"
 )
 
@@ -21,16 +20,8 @@ func NewWorkerPool(poolSize int) *WorkerPool{
 	for i := 0; i <poolSize; i++ {
 		go func() {
 			for w := range wp.work{
-
-				log.Println("【work pool】 get one work")
 				w.task()
 			}
-
-			//select {
-			//case w := <- wp.work:
-			//	log.Println("【workerPool】get work")
-			//	w.task()
-			//}
 			wp.wg.Done()
 		}()
 	}
