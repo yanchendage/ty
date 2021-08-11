@@ -1,8 +1,9 @@
-package rpc
+package coder
 
 import (
 	"bytes"
 	"encoding/gob"
+	"github.com/yanchendage/ty/rpc"
 	"io"
 	"log"
 	"reflect"
@@ -15,14 +16,15 @@ type GobCoder struct {
 	decoder *gob.Decoder
 }
 
-func (c *GobCoder) DecodeHeader(buf []byte) (Header, error){
+func (c *GobCoder) DecodeHeader(buf []byte) (rpc.Header, error){
 	//var msg Msg
-	var header Header
+
+	var header rpc.Header
 	dec := gob.NewDecoder(bytes.NewBuffer(buf))
 	err := dec.Decode(&header)
 
 	if err != nil {
-		return Header{}, err
+		return rpc.Header{}, err
 	}
 
 	return header ,err
@@ -33,7 +35,7 @@ func (c *GobCoder) DecodeBody(buf []byte, interfaces ...interface{}) ([]reflect.
 	var reflectValueSlice []reflect.Value
 
 	dec := gob.NewDecoder(bytes.NewBuffer(buf))
-	err := dec.Decode(&Header{})
+	err := dec.Decode(&rpc.Header{})
 
 	for _, i := range interfaces {
 		err = dec.DecodeValue(reflect.ValueOf(i))
@@ -49,7 +51,7 @@ func (c *GobCoder) DecodeBody(buf []byte, interfaces ...interface{}) ([]reflect.
 func (c *GobCoder) DecodeArgs(buf []byte, argsInterface interface{}) (reflect.Value, error) {
 
 	dec := gob.NewDecoder(bytes.NewBuffer(buf))
-	err := dec.Decode(&Header{})
+	err := dec.Decode(&rpc.Header{})
 	err = dec.DecodeValue(reflect.ValueOf(argsInterface))
 	if err!=nil {
 		return reflect.ValueOf(argsInterface), err
@@ -60,7 +62,7 @@ func (c *GobCoder) DecodeArgs(buf []byte, argsInterface interface{}) (reflect.Va
 func (c *GobCoder) DecodeReply(buf []byte, replyInterface interface{}) (reflect.Value, error) {
 
 	dec := gob.NewDecoder(bytes.NewBuffer(buf))
-	err := dec.Decode(&Header{})
+	err := dec.Decode(&rpc.Header{})
 	err = dec.DecodeValue(reflect.ValueOf(replyInterface))
 	if err!=nil {
 		return reflect.ValueOf(replyInterface), err
@@ -68,7 +70,7 @@ func (c *GobCoder) DecodeReply(buf []byte, replyInterface interface{}) (reflect.
 	return reflect.ValueOf(replyInterface).Elem(), nil
 }
 
-func (c *GobCoder) Encode(msg Msg) ([]byte, error) {
+func (c *GobCoder) Encode(msg rpc.Msg) ([]byte, error) {
 
 	buf := new(bytes.Buffer)
 
@@ -89,15 +91,15 @@ func (c *GobCoder) Encode(msg Msg) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func (c *GobCoder) ReadHeader(header *Header) error  {
+func (c *GobCoder) ReadHeader(header *rpc.Header) error  {
 	return  c.decoder.Decode(header)
 }
 
-func (c *GobCoder) ReadBody(body *Body) error  {
+func (c *GobCoder) ReadBody(body *rpc.Body) error  {
 	return  c.decoder.Decode(body)
 }
 
-func (c *GobCoder) Write(header *Header, body *Body) error {
+func (c *GobCoder) Write(header *rpc.Header, body *rpc.Body) error {
 	//defer func() {
 	//	//flush remain buffer to file
 	//	//err := c.buf.Flush()
@@ -133,9 +135,9 @@ func (c *GobCoder) Close() error {
 }
 
 //Determine whether the interface is implemented
-var _ ICoder = (*GobCoder)(nil)
+var _ rpc.ICoder = (*GobCoder)(nil)
 
-func NewGobCoder(conn io.Closer) ICoder{
+func NewGobCoder(conn io.Closer) rpc.ICoder {
 
 	var buf bytes.Buffer
 

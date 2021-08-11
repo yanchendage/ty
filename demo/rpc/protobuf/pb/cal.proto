@@ -1,0 +1,16 @@
+syntax = "proto3";
+package pb;
+option go_package = "./;pb";
+
+message SquareRequest {
+    int64 num = 1;
+}
+
+message SquareResponse {
+	int64 num = 1;
+	int64 ans = 2;
+}
+
+service CalService {
+	rpc Square (SquareRequest) returns (SquareResponse);
+}
