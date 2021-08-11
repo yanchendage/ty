@@ -8,7 +8,6 @@ import (
 	"io"
 	"log"
 	"net"
-	"reflect"
 	"sync"
 )
 
@@ -113,44 +112,95 @@ func (client *Client) receive()  {
 				log.Println("【RPC Client】read data err", err)
 				return
 			}
-
 			header, err := client.Coder.DecodeHeader(readMsg.Data)
+
 			if err != nil {
 				log.Println("【RPC Client】data decode header err", err)
 				return
 			}
 
 			caller := client.RemoveCaller(header.Seq)
+
 			switch {
 			case caller == nil:
+				fmt.Println("caller == nil")
 				err = errors.New("【RPC Client】caller was already removed")
 			case header.Err != "":
+				fmt.Println(header.Err != "")
 				caller.Error = fmt.Errorf(header.Err)
 				caller.done()
 			default:
-				var argv reflect.Value
-				argType := reflect.TypeOf(caller.Reply)
-				if argType.Kind() == reflect.Ptr {
-					argv = reflect.New(argType.Elem())
-				} else {
-					argv = reflect.New(argType).Elem()
-				}
+				//var replyv reflect.Value
+				//replyType := reflect.TypeOf(caller.Reply)
+				//if replyType.Kind() == reflect.Ptr {
+				//	replyv = reflect.New(replyType.Elem())
+				//} else {
+				//	replyv = reflect.New(replyType).Elem()
+				//}
+				//
+				//replyvi := replyv.Interface()
+				//
+				//if replyv.Type().Kind() != reflect.Ptr {
+				//	replyvi = replyv.Addr().Interface()
+				//}
+				//
+				//fmt.Println(replyvi)
+				//
+				//reply, err := client.Coder.DecodeBody(readMsg.GetData(),replyvi)
+				////reply,err := client.Coder.DecodeReply(readMsg.GetData(),argvi)
+				//if err != nil{
+				//	log.Println("【RPC Client】data decode body err", err)
+				//	return
+				//}
+				////
+				//reflect.ValueOf(caller.Reply).Elem().Set(reply)
+				//
+				//caller.done()
 
-				argvi := argv.Interface()
+				//client.Coder.DecodeRe
 
-				if argv.Type().Kind() != reflect.Ptr {
-					argvi = argv.Addr().Interface()
-				}
+				fmt.Println("readMsg.GetData()",readMsg.GetData())
+				//reply, err := client.Coder.DecodeBody(readMsg.GetData(),caller.Reply)
+				//if err != nil{
+				//	log.Println("【RPC Client】data decode body err", err)
+				//	return
+				//}
+				//fmt.Println("sds")
+				//caller.done()
+				//fmt.Println(reply)
 
-				reply,err := client.Coder.DecodeReply(readMsg.GetData(),argvi)
+				err := client.Coder.DecodeResponse(readMsg.GetData(),caller.Reply)
 				if err != nil{
 					log.Println("【RPC Client】data decode body err", err)
 					return
 				}
-
-				reflect.ValueOf(caller.Reply).Elem().Set(reply)
-
+				fmt.Println("sds")
 				caller.done()
+				//for i := 0; i < reply.Elem().NumField(); i++ {
+				//
+				//	field := typ.Elem().Field(i)  //字段的数据类型
+				//	value := val.Elem().Field(i)  //字段的数据值
+				//	fmt.Println("type1:", field)  //type: {Name  string json:"name" 0 [0] false}
+				//	fmt.Println("value1:", value) //value: lei
+				//	switch value.Kind() {
+				//	case reflect.Int:
+				//		value.SetInt(88) //往该字段设值
+				//	case reflect.String:
+				//		value.SetString("Test") // 往该字段设值
+				//	default:
+				//		fmt.Println("类型不支持")
+				//	}
+				//	fmt.Println("type2:", field)  //type: {Name  string json:"name" 0 [0] false}
+				//	fmt.Println("value2:", value) //value: Test
+				//	fmt.Println(field.Tag.Get("json"))
+				//}
+				//
+				//
+				//caller.Reply
+				//fmt.Println(caller.Reply)
+				//fmt.Println(reply)
+				//reflect.ValueOf(caller.Reply)..Elem().Set(reply)
+				//reflect.ValueOf(caller.Reply).Elem().Set(reply)
 			}
 			//fmt.Println("【RPC Client】 Recv Msg: ID=", readMsg.ID, ", len=", readMsg.DataLen, ", data=", string(readMsg.Data))
 		}
@@ -189,9 +239,9 @@ func Dial(address string, serializationProtocol SerializationProtocol) (*Client,
 	go client.receive()
 
 	return client, err
-
 }
 
+//第二版
 func (client *Client) Send(caller *Caller) {
 
 	client.sending.Lock()
@@ -211,35 +261,84 @@ func (client *Client) Send(caller *Caller) {
 		Seq:          seq,
 	}
 
-	msg := Msg{
-		H: h,
-		Args:reflect.ValueOf(caller.Args),
+	b, err := client.Coder.EncodeRequest(&h,caller.Args)
+
+	if err != nil {
+		log.Println("【RPC Client】Encode err", err)
+		return
 	}
 
-	buf , err := client.Coder.Encode(msg)
+	writeMsg, err := client.ServerCoder.Encode(server.NewMessage(1, b))
 
-	if err !=nil {
-		log.Println("【RPC】encode err ", err)
+	if err != nil {
+		log.Println("【RPC Client】encode msg err", err)
+		return
 	}
 
-		writeMsg, err := client.ServerCoder.Encode(server.NewMessage(0, buf))
-		if err != nil {
-			log.Println("【Client】encode msg err", err)
-			return
-		}
-
-		_, err = client.conn.Write(writeMsg)
-		if err != nil {
-			log.Println("【Client】write msg err", err)
-			return
-		}
+	_, err = client.conn.Write(writeMsg)
+	if err != nil {
+		log.Println("【RPC Client】write msg err", err)
+		return
+	}
 
 	if err != nil {
 		log.Println("【RPC Client】send msg err", err)
 		return
 	}
-	log.Println("【RPC Client】send msg success", buf)
+	log.Println("【RPC Client】send msg success", b)
 }
+
+
+
+//第一版代码
+//func (client *Client) Send(caller *Caller) {
+//
+//	client.sending.Lock()
+//	defer client.sending.Unlock()
+//
+//	seq , err := client.AddCaller(caller)
+//
+//	if err != nil {
+//		log.Println("【RPC Client】AddCaller err", err)
+//		caller.Error = err
+//		caller.done()
+//		return
+//	}
+//
+//	h := Header{
+//		ServiceMethod: caller.ServiceMethod,
+//		Seq:          seq,
+//	}
+//
+//	msg := Msg{
+//		H: h,
+//		Args:reflect.ValueOf(caller.Args),
+//	}
+//
+//	buf , err := client.Coder.Encode(msg)
+//
+//	if err !=nil {
+//		log.Println("【RPC】encode err ", err)
+//	}
+//
+//		writeMsg, err := client.ServerCoder.Encode(server.NewMessage(0, buf))
+//		if err != nil {
+//			log.Println("【Client】encode msg err", err)
+//			return
+//		}
+//
+//		_, err = client.conn.Write(writeMsg)
+//		if err != nil {
+//			log.Println("【Client】write msg err", err)
+//			return
+//		}
+//
+//	if err != nil {
+//		log.Println("【RPC Client】send msg err", err)
+//		return
+//	}
+//	log.Println("【RPC Client】send msg success", buf)
+//}
 
 func (client *Client) AsyncCall(serviceMethod string, args interface{}, reply interface{}, done chan *Caller) *Caller{
 	if done == nil{

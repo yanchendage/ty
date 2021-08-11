@@ -13,7 +13,6 @@ type ClientManager struct {
 	clients map[string]*Client
 }
 
-
 var _ io.Closer = (*ClientManager)(nil)
 
 func NewClientManager(discover IDiscovery, loadMode LoadMode) *ClientManager {
@@ -48,7 +47,8 @@ func (cm *ClientManager) dial(addr string) (*Client, error){
 
 	if client == nil {
 		var err error
-		client, err = Dial(addr,"application/gob")
+		//client, err = Dial(addr,"application/gob")
+		client, err = Dial(addr,"application/protobuf")
 		if err != nil {
 			return nil, err
 		}

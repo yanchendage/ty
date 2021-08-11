@@ -1,0 +1,8 @@
+syntax = "proto3";
+package pb;
+
+option go_package = "./;pb";
+
+message Pong {
+    string msg = 1;
+}

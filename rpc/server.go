@@ -11,16 +11,92 @@ import (
 	"sync"
 )
 
-type GobCoderRouter struct {
+
+//
+//
+//type GobCoderRouter struct {
+//	server.BRouter
+//}
+//
+//func (gc *GobCoderRouter) Handle(request server.IRequest) {
+//
+//	log.Println("【RPC Server】 request msgId=", request.GetMsgID(), ", data=", string(request.GetMsgData()))
+//
+//	//new coder
+//	f := NewCoderFuncMap[GobProtocol]
+//	if f == nil {
+//		log.Println("【RPC Server】invalid coder type ", request.GetMsgID())
+//		return
+//	}
+//
+//	coder := f(request.GetConnection().GetTCPConn())
+//
+//	header, err := coder.DecodeHeader(request.GetMsgData())
+//
+//	if err !=nil {
+//		log.Println("【RPC Server】coder decode header err ", err)
+//		return
+//	}
+//
+//	serviceManager,_ := request.GetConnection().GetServer().GetProperty("ServiceManager")
+//	sm := serviceManager.(*ServiceManager)
+//
+//	svc, mt, err := sm.findService(header.ServiceMethod)
+//
+//	if err != nil {
+//		log.Println("【RPC Server】find service method err ", err)
+//		return
+//	}
+//
+//	arg := mt.newArgv()
+//	reply := mt.newReplyv()
+//	//
+//	argvi := arg.Interface()
+//	if arg.Type().Kind() != reflect.Ptr {
+//		argvi = arg.Addr().Interface()
+//	}
+//
+//	arg, err = coder.DecodeArgs(request.GetMsgData(),argvi)
+//	if err != nil {
+//		log.Println("【RPC Server】Decode Args err ", err)
+//		header.Err = "Decode Args err"
+//		return
+//	}
+//
+//	err = svc.call(mt, arg, reply)
+//	if err != nil {
+//		log.Println("【RPC Server】service call err ", err)
+//		header.Err = "service call err"
+//		return
+//	}
+//
+//	msg := Msg{
+//		H: header,
+//		Reply:reply,
+//	}
+//
+//	respBuf, err := coder.Encode(msg)
+//
+//	if err != nil {
+//		log.Println("【RPC Server】response coder encode err ", err)
+//		return
+//	}
+//
+//	err = request.GetConnection().SendMsg(0,respBuf)
+//
+//	if err != nil {
+//		log.Println("【RPC Server】response send msg err ", err)
+//		return
+//	}
+//}
+
+type ProtoCoderRouter struct {
 	server.BRouter
 }
 
-func (gc *GobCoderRouter) Handle(request server.IRequest) {
-
-	log.Println("【RPC Server】 request msgId=", request.GetMsgID(), ", data=", string(request.GetMsgData()))
-
+func (gc *ProtoCoderRouter) Handle(request server.IRequest) {
 	//new coder
-	f := NewCoderFuncMap[GobProtocol]
+	f := NewCoderFuncMap[ProtobufProtocol]
 	if f == nil {
 		log.Println("【RPC Server】invalid coder type ", request.GetMsgID())
 		return
@@ -34,12 +110,11 @@ func (gc *GobCoderRouter) Handle(request server.IRequest) {
 		log.Println("【RPC Server】coder decode header err ", err)
 		return
 	}
-
+	
 	serviceManager,_ := request.GetConnection().GetServer().GetProperty("ServiceManager")
 	sm := serviceManager.(*ServiceManager)
 
 	svc, mt, err := sm.findService(header.ServiceMethod)
-
 	if err != nil {
 		log.Println("【RPC Server】find service method err ", err)
 		return
@@ -53,7 +128,7 @@ func (gc *GobCoderRouter) Handle(request server.IRequest) {
 		argvi = arg.Addr().Interface()
 	}
 
-	arg, err = coder.DecodeArgs(request.GetMsgData(),argvi)
+	arg, err = coder.DecodeBody(request.GetMsgData(),argvi)
 	if err != nil {
 		log.Println("【RPC Server】Decode Args err ", err)
 		header.Err = "Decode Args err"
@@ -67,25 +142,44 @@ func (gc *GobCoderRouter) Handle(request server.IRequest) {
 		return
 	}
 
-	msg := Msg{
-		H: header,
-		Reply:reply,
-	}
-
-	respBuf, err := coder.Encode(msg)
-
+	respBuf, err := coder.EncodeResponse(&header, reply.Interface())
 	if err != nil {
 		log.Println("【RPC Server】response coder encode err ", err)
 		return
 	}
 
-	err = request.GetConnection().SendMsg(0,respBuf)
+	err = request.GetConnection().SendMsg(1,respBuf)
 
 	if err != nil {
 		log.Println("【RPC Server】response send msg err ", err)
 		return
 	}
+
+	//
+	//msg := Msg{
+	//	H: header,
+	//	Reply:reply,
+	//}
+
+	//fmt.Println(msg)
+
+	//respBuf, err := coder.Encode(msg)
+	//
+	//if err != nil {
+	//	log.Println("【RPC Server】response coder encode err ", err)
+	//	return
+	//}
+	//
+	//err = request.GetConnection().SendMsg(0,respBuf)
+	//
+	//if err != nil {
+	//	log.Println("【RPC Server】response send msg err ", err)
+	//	return
+	//}
 }
+
+
+
 
 type ServiceManager struct {
 	ServiceMap sync.Map
@@ -104,12 +198,14 @@ func (sm *ServiceManager) findService(serviceMethod string) (svc *service, metho
 	index := strings.LastIndex(serviceMethod, ".")
 
 	if index < 0 {
-		err = errors.New("invalid serviceMethod ")
+		fmt.Println("invalid serviceMethod")
+		err = errors.New("invalid serviceMethod")
 	}
 	serviceName, methodName := serviceMethod[:index], serviceMethod[index+1:]
 	svcInterface, ok := sm.ServiceMap.Load(serviceName)
 
 	if !ok {
+		fmt.Println("rpc server: can't find service ")
 		err = errors.New("rpc server: can't find service " + serviceName)
 		return
 	}
@@ -151,7 +247,8 @@ func (serverManager *ServerManager) Run() {
 
 	serverManager.Server.SetProperty("ServiceManager", serverManager.serviceManager)
 
-	serverManager.Server.AddRouter(0,&GobCoderRouter{})
+	//serverManager.Server.AddRouter(0,&GobCoderRouter{})
+	serverManager.Server.AddRouter(1,&ProtoCoderRouter{})
 
 	serverManager.Server.Run()
 }
@@ -203,7 +300,7 @@ func NewServerManager(serverName string, host string, port int,properties map[st
 		r.SetProperty(key, value)
 	}
 
-	r.AddRouter(0,&GobCoderRouter{})
+	//r.AddRouter(0,&GobCoderRouter{})
 
 
 	r.Run()
@@ -215,7 +312,7 @@ func NewServerManager(serverName string, host string, port int,properties map[st
 
 func NewServer(serverName string, host string, port int)  {
 	r := server.NewServer(serverName, host, port)
-	r.AddRouter(0,&GobCoderRouter{})
+	//r.AddRouter(0,&GobCoderRouter{})
 	r.Run()
 }
 

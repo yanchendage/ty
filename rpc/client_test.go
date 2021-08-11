@@ -11,7 +11,7 @@ import (
 
 func TestClient(t *testing.T) {
 
-	client, err := Dial("127.0.0.1:7729","application/gob")
+	client, err := Dial("127.0.0.1:7729","application/protobuf")
 
 	if err != nil {
 		log.Println("【RPC Client】Dial err", err)

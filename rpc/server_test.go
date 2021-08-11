@@ -8,7 +8,7 @@ import (
 
 func TestServer(t *testing.T) {
 	var foo Foo
-	NewServer("RPC", "127.0.0.1", 7727)
+	NewServer("RPC", "127.0.0.1", 7729)
 
 	sm := NewServiceManager()
 	sm.RegisterService(&foo)
@@ -26,6 +26,7 @@ func TestNewServerManager(t *testing.T) {
 
 	NewServerManager("RPC", "127.0.0.1", 7729, properties)
 }
+
 
 func TestInitServerManager(t *testing.T) {
 	var foo Foo

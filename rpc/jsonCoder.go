@@ -1,10 +1,9 @@
-package coder
+package rpc
 
 import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"github.com/yanchendage/ty/rpc"
 	"io"
 )
 
@@ -15,23 +14,23 @@ type JsonCoder struct {
 	decoder *json.Decoder
 }
 
-func (j *JsonCoder) Encode(msg rpc.Msg) ([]byte, error){
+func (j *JsonCoder) Encode(msg Msg) ([]byte, error){
 	return nil, nil
 }
 
-func (j *JsonCoder) Decode([]byte) (*rpc.Msg, error){
+func (j *JsonCoder) Decode([]byte) (*Msg, error){
 	return nil, nil
 }
 
-func (j *JsonCoder) ReadHeader(header *rpc.Header) error  {
+func (j *JsonCoder) ReadHeader(header *Header) error  {
 	return  j.decoder.Decode(header)
 }
 
-func (j *JsonCoder) ReadBody(body *rpc.Body) error  {
+func (j *JsonCoder) ReadBody(body *Body) error  {
 	return  j.decoder.Decode(body)
 }
 
-func (j *JsonCoder) Write(header *rpc.Header, body *rpc.Body) error {
+func (j *JsonCoder) Write(header *Header, body *Body) error {
 	return errors.New("123")
 }
 
@@ -42,7 +41,7 @@ func (j *JsonCoder) Close() error {
 //Determine whether the interface is implemented
 //var _ ICoder = (*JsonCoder)(nil)
 
-func NewJsonCoder(conn io.Closer) rpc.ICoder {
+func NewJsonCoder(conn io.Closer) ICoder {
 
 	//var buf bytes.Buffer
 	//

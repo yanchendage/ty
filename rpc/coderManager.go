@@ -5,22 +5,18 @@ import (
 	"reflect"
 )
 
-//var Byte bytes.Buffer
-
+//消息
 type Msg struct {
 	H Header
-
 	Args reflect.Value
 	Reply reflect.Value
-
-	//Args interface{}
-	//Reply interface{}
-
-	//B Body
-
-	//MEthodType *methodType
-	//svc *service
 }
+
+type Mb struct {
+	header []byte
+	body []byte
+}
+
 
 //header
 type Header struct {
@@ -28,6 +24,7 @@ type Header struct {
 	Seq uint64
 	Err string
 }
+
 //body
 type Body struct {
 	Args reflect.Value
@@ -41,13 +38,15 @@ type SerializationProtocol string
 
 const GobProtocol SerializationProtocol  = "application/gob"
 const JsonProtocol SerializationProtocol = "application/json"
+const ProtobufProtocol SerializationProtocol = "application/protobuf"
 
 
 var NewCoderFuncMap map[SerializationProtocol]NewCodeFunc
 
 func init()  {
 	NewCoderFuncMap = make(map[SerializationProtocol]NewCodeFunc)
-	NewCoderFuncMap[GobProtocol] = NewGobCoder
+	//NewCoderFuncMap[GobProtocol] = NewGobCoder
+	NewCoderFuncMap[ProtobufProtocol] = NewProtobufCoder
 }
 
 

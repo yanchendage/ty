@@ -1,0 +1,9 @@
+syntax = "proto3";
+package pb;
+option go_package = "./aa;pb";
+
+message Person2 {
+    string Name = 1;
+    int32 Age = 2;
+    string From = 3;
+}

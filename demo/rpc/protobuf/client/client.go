@@ -3,31 +3,34 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/yanchendage/ty/demo/rpc/protobuf/pb"
 	"github.com/yanchendage/ty/rpc"
-	"sync"
-	"time"
+	"log"
 )
 
 func main()  {
-	discovery := rpc.NewRegistryDiscovery("http://127.0.0.1:8888", 10 * time.Second)
-	cm := rpc.NewClientManager(discovery, rpc.Random)
-	defer cm.Close()
 
-	var wg sync.WaitGroup
+	client, err := rpc.Dial("127.0.0.1:7729","application/protobuf")
 
-	arg2 := []string{"fuck","you"}
-	//var reply int
-	var reply2 string
-
-	for i := 0; i< 10000; i++ {
-		wg.Add(1)
-		go func(i int) {
-			defer  wg.Done()
-			cm.Call(context.Background(),"Foo.Echo", arg2, &reply2 )
-
-			fmt.Println(reply2)
-		}(i)
+	if err != nil {
+		log.Println("【RPC Client】Dial err", err)
+		return
 	}
 
-	wg.Wait()
+	defer  client.Close()
+
+
+	args := &pb.SquareRequest{Num:12}
+	reply := &pb.SquareResponse{}
+
+
+	err = client.SyncCall(context.Background(), "Cal.Square", args, reply)
+	fmt.Println(123)
+	if err !=nil {
+		log.Println("【Client】SyncCall err", err)
+		return
+	}
+	fmt.Println(reply)
+	log.Println("arg",args,"reply",reply.Num)
+
 }

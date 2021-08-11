@@ -1,0 +1,14 @@
+syntax = "proto3";
+package pb;
+option go_package = "./;pb";
+
+message RequestHeader {
+	uint64 id = 1;
+	string method = 2;
+	uint64 bodylen = 3;
+}
+
+message ResponseHeader {
+	uint64 id = 1;
+	string error = 2;
+}
