@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"github.com/yanchendage/ty/demo/rpc/protobuf/pb"
 	"github.com/yanchendage/ty/rpc"
 	"log"
@@ -19,18 +18,14 @@ func main()  {
 
 	defer  client.Close()
 
-
 	args := &pb.SquareRequest{Num:12}
-	reply := &pb.SquareResponse{}
-
+	reply := new(pb.SquareResponse)
 
 	err = client.SyncCall(context.Background(), "Cal.Square", args, reply)
-	fmt.Println(123)
 	if err !=nil {
 		log.Println("【Client】SyncCall err", err)
 		return
 	}
-	fmt.Println(reply)
-	log.Println("arg",args,"reply",reply.Num)
 
+	log.Println("arg",args,"reply",reply.Ans)
 }

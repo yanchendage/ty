@@ -104,7 +104,7 @@ func (gc *ProtoCoderRouter) Handle(request server.IRequest) {
 
 	coder := f(request.GetConnection().GetTCPConn())
 
-	header, err := coder.DecodeHeader(request.GetMsgData())
+	header, err := coder.DecodeRequestHeader(request.GetMsgData())
 
 	if err !=nil {
 		log.Println("【RPC Server】coder decode header err ", err)
@@ -128,12 +128,13 @@ func (gc *ProtoCoderRouter) Handle(request server.IRequest) {
 		argvi = arg.Addr().Interface()
 	}
 
-	arg, err = coder.DecodeBody(request.GetMsgData(),argvi)
+	err = coder.DecodeRequestBody(request.GetMsgData(),argvi)
 	if err != nil {
 		log.Println("【RPC Server】Decode Args err ", err)
 		header.Err = "Decode Args err"
 		return
 	}
+
 
 	err = svc.call(mt, arg, reply)
 	if err != nil {
@@ -154,32 +155,7 @@ func (gc *ProtoCoderRouter) Handle(request server.IRequest) {
 		log.Println("【RPC Server】response send msg err ", err)
 		return
 	}
-
-	//
-	//msg := Msg{
-	//	H: header,
-	//	Reply:reply,
-	//}
-
-	//fmt.Println(msg)
-
-	//respBuf, err := coder.Encode(msg)
-	//
-	//if err != nil {
-	//	log.Println("【RPC Server】response coder encode err ", err)
-	//	return
-	//}
-	//
-	//err = request.GetConnection().SendMsg(0,respBuf)
-	//
-	//if err != nil {
-	//	log.Println("【RPC Server】response send msg err ", err)
-	//	return
-	//}
 }
-
-
-
 
 type ServiceManager struct {
 	ServiceMap sync.Map
@@ -301,7 +277,7 @@ func NewServerManager(serverName string, host string, port int,properties map[st
 	}
 
 	//r.AddRouter(0,&GobCoderRouter{})
-
+	r.AddRouter(1,&ProtoCoderRouter{})
 
 	r.Run()
 
@@ -312,7 +288,7 @@ func NewServerManager(serverName string, host string, port int,properties map[st
 
 func NewServer(serverName string, host string, port int)  {
 	r := server.NewServer(serverName, host, port)
-	//r.AddRouter(0,&GobCoderRouter{})
+	r.AddRouter(1,&ProtoCoderRouter{})
 	r.Run()
 }
 

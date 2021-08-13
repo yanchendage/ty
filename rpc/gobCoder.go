@@ -5,7 +5,7 @@ import (
 	"encoding/gob"
 	"errors"
 	"github.com/golang/protobuf/proto"
-	"github.com/yanchendage/ty/rpc/pb"
+	wire_pb "github.com/yanchendage/ty/rpc/wire.pb"
 	"io"
 	"reflect"
 )
@@ -169,7 +169,7 @@ func (c *GobCoder) EncodeResponse(header *Header, body interface{}) ([]byte, err
 	}
 
 	// generate header
-	h := &pb.RequestHeader{
+	h := &wire_pb.RequestHeader{
 		Method:header.ServiceMethod,
 		Id:header.Seq,
 		Bodylen:uint64(len(pbResponse))}

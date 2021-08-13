@@ -112,7 +112,7 @@ func (client *Client) receive()  {
 				log.Println("【RPC Client】read data err", err)
 				return
 			}
-			header, err := client.Coder.DecodeHeader(readMsg.Data)
+			header, err := client.Coder.DecodeResponseHeader(readMsg.Data)
 
 			if err != nil {
 				log.Println("【RPC Client】data decode header err", err)
@@ -159,7 +159,7 @@ func (client *Client) receive()  {
 
 				//client.Coder.DecodeRe
 
-				fmt.Println("readMsg.GetData()",readMsg.GetData())
+				//fmt.Println("readMsg.GetData()",readMsg.GetData())
 				//reply, err := client.Coder.DecodeBody(readMsg.GetData(),caller.Reply)
 				//if err != nil{
 				//	log.Println("【RPC Client】data decode body err", err)
@@ -169,12 +169,12 @@ func (client *Client) receive()  {
 				//caller.done()
 				//fmt.Println(reply)
 
-				err := client.Coder.DecodeResponse(readMsg.GetData(),caller.Reply)
+				err := client.Coder.DecodeResponseBody(readMsg.GetData(),caller.Reply)
 				if err != nil{
 					log.Println("【RPC Client】data decode body err", err)
 					return
 				}
-				fmt.Println("sds")
+				//fmt.Println("sds")
 				caller.done()
 				//for i := 0; i < reply.Elem().NumField(); i++ {
 				//

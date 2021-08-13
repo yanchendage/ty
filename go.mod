@@ -9,6 +9,7 @@ require (
 	github.com/mattn/go-isatty v0.0.13 // indirect
 	github.com/mattn/go-runewidth v0.0.13 // indirect
 	github.com/peterh/liner v1.2.1 // indirect
+	github.com/prometheus/common v0.4.0
 	github.com/russross/blackfriday v1.6.0 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/sirupsen/logrus v1.8.1 // indirect

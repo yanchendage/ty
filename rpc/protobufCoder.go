@@ -4,19 +4,18 @@ import (
 	"errors"
 	"fmt"
 	"github.com/golang/protobuf/proto"
-	pb2 "github.com/yanchendage/ty/demo/rpc/protobuf/pb"
-	"github.com/yanchendage/ty/rpc/pb"
+	wire_pb "github.com/yanchendage/ty/rpc/wire.pb"
+	//"github.com/yanchendage/ty/rpc/pb"
 	"io"
-	"reflect"
 )
 
 type ProtobufCoder struct {
 	conn io.Closer
 }
 
-func (c *ProtobufCoder) DecodeHeader(buf []byte) (Header, error){
+func (c *ProtobufCoder) DecodeRequestHeader(buf []byte) (Header, error){
 	//var msg Msg
-	header := pb.RequestHeader{}
+	header := wire_pb.RequestHeader{}
 
 	// Marshal Header
 	err := proto.Unmarshal(buf, &header)
@@ -35,7 +34,28 @@ func (c *ProtobufCoder) DecodeHeader(buf []byte) (Header, error){
 	}, nil
 }
 
-func (c *ProtobufCoder) DecodeBody(buf []byte, bodyInterface interface{}) (reflect.Value, error) {
+func (c *ProtobufCoder) DecodeResponseHeader(buf []byte) (Header, error){
+	//var msg Msg
+	header := wire_pb.RequestHeader{}
+
+	// Marshal Header
+	err := proto.Unmarshal(buf, &header)
+	if err != nil {
+		return Header{}, err
+	}
+	//这里需要拆分一下header和body
+	buf = buf[0:len(buf)-int(header.Bodylen)]
+	err = proto.Unmarshal(buf, &header)
+	if err != nil {
+		return Header{}, err
+	}
+	return Header{
+		ServiceMethod:header.Method,
+		Seq:header.Id,
+	}, nil
+}
+
+func (c *ProtobufCoder) DecodeRequestBody(buf []byte, bodyInterface interface{}) error {
 	//
 	//var response proto.Message
 	//if x != nil {
@@ -48,26 +68,37 @@ func (c *ProtobufCoder) DecodeBody(buf []byte, bodyInterface interface{}) (refle
 	//		)
 	//	}
 	//}
+
+	header := wire_pb.RequestHeader{}
+
+	// Marshal Header
+	err := proto.Unmarshal(buf, &header)
+	if err != nil {
+		return err
+	}
+
+	//这里需要拆分一下header和body
+	buf = buf[len(buf)-int(header.Bodylen):]
+
 	var request proto.Message
 	request, ok := bodyInterface.(proto.Message)
 
 	if !ok {
-		return reflect.Value{}, errors.New("bodyInterface does not implement proto.Message")
+		//return reflect.Value{}, errors.New("bodyInterface does not implement proto.Message")
+		return  errors.New("bodyInterface does not implement proto.Message")
 	}
-	var pbRequest []byte
+	//var pbRequest []byte
 
 	if request != nil {
-		err := proto.Unmarshal(pbRequest, request)
+		err := proto.Unmarshal(buf, request)
 		if err != nil {
-			return reflect.Value{}, err
+			//return reflect.Value{}, err
+			return err
 		}
 	}
-	fmt.Println(1222)
-	fmt.Println(pbRequest)
-	fmt.Println(pbRequest)
-	fmt.Println(request)
 
-	return  reflect.ValueOf(request), nil
+	//return  reflect.ValueOf(request), nil
+	return err
 	//return  reflect.ValueOf(request).Elem(), nil
 
 	//dec := gob.NewDecoder(bytes.NewBuffer(buf))
@@ -81,20 +112,26 @@ func (c *ProtobufCoder) DecodeBody(buf []byte, bodyInterface interface{}) (refle
 }
 
 
-func (c *ProtobufCoder) DecodeResponse(buf []byte, bodyInterface interface{}) error{
+func (c *ProtobufCoder) DecodeResponseBody(buf []byte, bodyInterface interface{}) error{
+	header := wire_pb.RequestHeader{}
 
-	fmt.Println(buf)
-	var request proto.Message
-	request, ok := bodyInterface.(proto.Message)
-	fmt.Println(request.String())
+	// Marshal Header
+	err := proto.Unmarshal(buf, &header)
+	if err != nil {
+		return err
+	}
 
+	//这里需要拆分一下header和body
+	buf = buf[len(buf)-int(header.Bodylen):]
+
+	var response proto.Message
+	response, ok := bodyInterface.(proto.Message)
 	if !ok {
 		return  errors.New("bodyInterface does not implement proto.Message")
 	}
-	var pbRequest []byte
 
-	if request != nil {
-		err := proto.Unmarshal(pbRequest, request)
+	if response != nil {
+		err := proto.Unmarshal(buf, response)
 		if err != nil {
 			return  err
 		}
@@ -127,12 +164,44 @@ func (c *ProtobufCoder) EncodeResponse(header *Header, body interface{}) ([]byte
 
 	//借鉴了protorpc
 	var response proto.Message
+
 	if body != nil {
 		var ok bool
 		if response, ok = body.(proto.Message); !ok {
 			return nil, errors.New("body does not implement proto.Message")
 		}
 	}
+	//
+	//fmt.Println("response",reflect.TypeOf(response).Kind())
+	//fmt.Println("response",reflect.ValueOf(reflect.TypeOf(response).Elem()))
+	//
+	//
+	//for i := 0; i < reflect.TypeOf(response).Elem().NumField(); i++ {
+	//
+	//	field := reflect.TypeOf(response).Elem().Field(i)
+	//	fieldName := field.Name
+	//
+	//	fieldValue := reflect.ValueOf(response).Elem().FieldByName(fieldName)
+	//	if !fieldValue.IsValid() {
+	//		fmt.Println(123)
+	//		continue
+	//	}
+	//
+	//	if fieldValue.CanInterface() {
+	//		fmt.Println("exported fieldName:%v value:%v", fieldName, fieldValue.Interface())
+	//
+	//		if fieldValue.CanSet() && fieldValue.Kind() == reflect.String {
+	//			oldValue := fieldValue.Interface().(string)
+	//			fieldValue.SetString(oldValue + " auto append")
+	//		}
+	//
+	//	} else {
+	//		// 强行取址
+	//		forceValue := reflect.NewAt(fieldValue.Type(), unsafe.Pointer(fieldValue.UnsafeAddr())).Elem()
+	//		fmt.Println("unexported fieldName:%v value:%v", fieldName, forceValue.Interface())
+	//	}
+	//
+	//}
 
 	// marshal request
 	pbResponse := []byte{}
@@ -144,10 +213,10 @@ func (c *ProtobufCoder) EncodeResponse(header *Header, body interface{}) ([]byte
 		}
 	}
 
-	fmt.Println()
+	fmt.Println(pbResponse)
 
 	// generate header
-	h := &pb.RequestHeader{
+	h := &wire_pb.RequestHeader{
 		Method:header.ServiceMethod,
 		Id:header.Seq,
 		Bodylen:uint64(len(pbResponse))}
@@ -169,27 +238,25 @@ func (c *ProtobufCoder) EncodeResponse(header *Header, body interface{}) ([]byte
 
 
 
-	fmt.Println(append(pbHeader, pbResponse...))
+	//fmt.Println(append(pbHeader, pbResponse...))
+	//
+	//h2 := &wire_pb.RequestHeader{}
+	//proto.Unmarshal(append(pbHeader, pbResponse...),h2)
+	//
+	//fmt.Println(h2.Id)
+	//h3 := &pb.SquareResponse{}
+	//fmt.Println(pbHeader)
+	//fmt.Println(pbResponse)
+	//proto.Unmarshal(pbResponse,h3)
+	//fmt.Println(pbResponse)
+	//
+	//fmt.Println(h3.Ans)
 
-	h2 := &pb.RequestHeader{}
-	proto.Unmarshal(append(pbHeader, pbResponse...),h2)
-
-	fmt.Println(h2.Id)
-	h3 := &pb2.SquareResponse{}
-	proto.Unmarshal(pbResponse,h3)
-	fmt.Println(pbResponse)
-
-	fmt.Println(h3.Ans)
 
 
 
-
-
+	//fmt.Println("返回了,",append(pbHeader, pbResponse...))
 	return append(pbHeader, pbResponse...), nil
-
-
-
-
 }
 
 
@@ -216,7 +283,7 @@ func (c *ProtobufCoder) EncodeRequest(header *Header, body interface{}) ([]byte,
 	}
 
 	// generate header
-	h := &pb.RequestHeader{
+	h := &wire_pb.RequestHeader{
 		Method:header.ServiceMethod,
 		Id:header.Seq,
 		Bodylen:uint64(len(pbRequest))}

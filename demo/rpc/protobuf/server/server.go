@@ -14,10 +14,7 @@ func (cal *Cal) Square(request *pb.SquareRequest,response *pb.SquareResponse) er
 }
 
 func main()  {
-	var cal Cal
-
 	serverManager := rpc.InitServerManager("RPC", "127.0.0.1", 7729)
-	serverManager.RegisterService(&cal)
-
+	serverManager.RegisterService(new(Cal))
 	serverManager.Run()
 }

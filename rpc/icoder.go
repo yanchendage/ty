@@ -2,7 +2,6 @@ package rpc
 
 import (
 	"io"
-	"reflect"
 )
 
 
@@ -21,15 +20,12 @@ type ICoder interface {
 	//Write(*Header, *Body) error
 
 	EncodeRequest(*Header,interface{}) ([]byte, error)
-	//DecodeRequestHeader(*Request) error
-	//DecodeBody(interface{}) error
-	//Encode(msg Msg) ([]byte, error)
-	DecodeHeader(buf []byte) (Header, error)
-	DecodeBody(buf []byte, body interface{}) (reflect.Value, error)
+	DecodeRequestHeader(buf []byte) (Header, error)
+	DecodeRequestBody(buf []byte, body interface{}) error
 
 	EncodeResponse(*Header, interface{}) ([]byte, error)
-
-	DecodeResponse(buf []byte, bodyInterface interface{}) error
+	DecodeResponseHeader(buf []byte) (Header, error)
+	DecodeResponseBody(buf []byte, bodyInterface interface{}) error
 
 	//DecodeArgs(buf []byte, argsInterface interface{}) (reflect.Value, error)
 	//DecodeReply(buf []byte, replyInterface interface{}) (reflect.Value, error)
